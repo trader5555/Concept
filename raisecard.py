@@ -1,92 +1,67 @@
 # raisecard.py
 
 # encoding:utf-8
-import requests
 import os
 import plugins
-from io import BytesIO
 from bridge.context import ContextType
 from bridge.reply import Reply, ReplyType
 from common.log import logger
 from plugins import *
 
 @plugins.register(
-    name="RaiseCard",
+    name="ConceptPlugin",
     desire_priority=100,
     hidden=False,
-    desc="A simple plugin that raises a card with a given message",
+    desc="A plugin that generates responses based on concept prompts",
     version="0.1",
-    author="金永勋 微信：xun900207",
+    author="Your Name",
 )
-class RaiseCardPlugin(Plugin):
+class ConceptPlugin(Plugin):
     def __init__(self):
         super().__init__()
         try:
             self.handlers[Event.ON_HANDLE_CONTEXT] = self.on_handle_context
-            logger.info("[RaiseCardPlugin] inited.")
+            self.prompt_file = self.load_prompt()
+            logger.info("[ConceptPlugin] initialized.")
         except Exception as e:
-            logger.warn("[RaiseCardPlugin] init failed, ignore.")
+            logger.warn("[ConceptPlugin] init failed, ignore.")
             raise e
 
     def on_handle_context(self, e_context: EventContext):
         if e_context["context"].type != ContextType.TEXT:
             return
-
         content = e_context["context"].content.strip()
         
-        if content.startswith("举牌"):
-            message = content.replace("举牌", "").strip()
-            image_url = self.get_card_image_url(message)
-            if image_url:
-                image_data = self.download_image(image_url)
-                if image_data:
-                    reply = Reply(ReplyType.IMAGE, image_data)
-                    e_context["reply"] = reply
-                    e_context.action = EventAction.BREAK_PASS
-                else:
-                    reply = Reply(ReplyType.TEXT, "无法保存卡片图片，请稍后再试。")
-                    e_context["reply"] = reply
-            else:
-                reply = Reply(ReplyType.TEXT, "无法生成卡片图片，请稍后再试。")
-                e_context["reply"] = reply
+        if content.startswith("概念"):
+            concept = content.replace("概念", "").strip()
+            response = self.generate_response(concept)
+            reply = Reply(ReplyType.TEXT, response)
+            e_context["reply"] = reply
+            e_context.action = EventAction.BREAK_PASS
 
     def get_help_text(self, **kwargs):
-        help_text = "输入【举牌 [消息]】 来生成带有指定消息的卡片图片。"
+        help_text = "输入【概念 [内容]】来获取基于概念的回答。"
         return help_text
 
-    def get_card_image_url(self, message):
-        api_url = "http://shanhe.kim/api/qq/ju2.php"
+    def load_prompt(self):
+        prompt_path = os.path.join(os.path.dirname(__file__), "concept_prompt.txt")
         try:
-            response = requests.get(api_url, params={"msg": message})
-            response.raise_for_status()
-            
-            # 检查响应内容类型是否为图片
-            content_type = response.headers.get('Content-Type')
-            if 'image' in content_type:
-                logger.debug("Image content detected")
-                return response.url  # 直接使用请求的URL
-            
-            data = response.json()
-            return data.get("image")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {e}")
-            return None
-        except ValueError:
-            logger.error("Failed to parse JSON response")
-            return None
+            with open(prompt_path, "r", encoding="utf-8") as file:
+                return file.read()
+        except FileNotFoundError:
+            logger.error(f"Prompt file not found: {prompt_path}")
+            return ""
 
-    def download_image(self, image_url):
-        try:
-            response = requests.get(image_url)
-            response.raise_for_status()
-            image_data = BytesIO(response.content)
-            logger.info("Image downloaded successfully")
-            return image_data
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to download image: {e}")
-            return None
+    def generate_response(self, concept):
+        # 这里您可以使用 self.prompt_file 和 concept 来生成回答
+        # 示例实现（您需要根据实际情况修改）：
+        prompt = self.prompt_file.replace("{concept}", concept)
+        # 这里应该调用您的 AI 模型或其他逻辑来生成回答
+        # 示例：response = ai_model.generate(prompt)
+        response = f"关于 '{concept}' 的回答：[这里是生成的回答]"
+        return response
 
 # 示例调用
 if __name__ == "__main__":
-    plugin = RaiseCardPlugin()
-    print(plugin.get_card_image_url("上班996别墅靠大海"))
+    plugin = ConceptPlugin()
+    print(plugin.generate_response("人工智能"))
